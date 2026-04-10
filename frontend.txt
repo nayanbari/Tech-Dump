@@ -1,0 +1,44 @@
+Master Context Prompt (Provide this first)
+"You are an expert frontend developer specializing in Next.js (App Router), React, TypeScript, and Tailwind CSS. We are building the frontend for an AI-powered Synthetic Test Data Generator. The backend is built with FastAPI and uses LangGraph for stateful Human-in-the-Loop (HITL) orchestration. The app features a chat interface where the AI iteratively refines a database schema, pauses to show a tabular data preview, waits for human approval or feedback, and finally streams a massive CSV/JSON file for download. We are NOT allowed to use shadcn/ui or any pre-styled component libraries. Instead, we will build a custom component library using Tailwind CSS and unstyled, accessible primitives from Radix UI ``. I will provide instructions step-by-step. Acknowledge this stack and architecture, and wait for the first step."
+Step 1: Core Scaffolding and Custom UI Primitives
+"Step 1: Set up the Next.js project scaffolding and our custom UI foundation.
+1.	Initialize a new Next.js project with the App Router, React, TypeScript, and Tailwind CSS.
+2.	Install Radix UI primitives for complex interactive components: @radix-ui/react-dialog, @radix-ui/react-scroll-area, and @radix-ui/react-avatar. These provide unstyled, accessible functionality ``.
+3.	Create a src/components/ui/ directory. Build our own custom reusable UI components strictly using Tailwind CSS: a Button (with variants like primary/outline), an Input field, and a Card container.
+4.	Create a basic App layout (app/layout.tsx and app/page.tsx) with a sidebar for session history and a main content area for the Chat Interface.
+Please provide the setup commands and the code for the custom UI components."
+Step 2: Authentication & Token Management Modal
+"Step 2: Create the authentication and integrations modal using custom components.
+1.	Create a LoginRegister component that allows users to sign in and stores the returned JWT securely.
+2.	Create an IntegrationsSettings component. Use the @radix-ui/react-dialog primitive to build a custom, accessible modal window. This modal must contain a form using our custom Input and Button components for the user to input their Atlassian Email and Jira/Confluence API Token.
+3.	Create an API utility file (lib/api.ts) using native fetch or axios that automatically attaches the stored JWT to the Authorization header of all outgoing requests.
+Please provide the code for the custom Radix UI modal, the authentication logic, and the API utility."
+Step 3: Chat Interface and Persistent State Management
+"Step 3: Build the core Chat UI and manage the session state.
+1.	Create a ChatWindow client component ("use client"). Use the @radix-ui/react-scroll-area for the message history to ensure custom styling capabilities, and our custom Input + Button for the chat box.
+2.	We need to track the LangGraph thread_id so the backend knows which session we are interacting with. Manage this thread_id using localStorage.
+3.	Crucial Next.js constraint: Because Next.js executes Server-Side Rendering (SSR) before Client-Side Rendering, accessing localStorage directly will cause hydration errors. Wrap the localStorage logic inside a useEffect hook or safely check if (typeof window!== 'undefined') before accessing it.
+4.	Define a TypeScript interface for ChatMessage (role: 'user' | 'ai', content: string, type: 'text' | 'preview').
+Please write the code for the persistent state hook and the main Chat UI component."
+Step 4: The Human-in-the-Loop (HITL) Data Preview Component
+"Step 4: Implement the Data Table preview for the LangGraph interrupt() state.
+When the LangGraph backend reaches the preview stage, it will pause and send a JSON array of sample data to the frontend.
+1.	Install @tanstack/react-table (TanStack Table). This is a headless UI library perfect for building custom data tables without preset styling.
+2.	Create a SchemaPreview component that takes the JSON array and renders it using TanStack Table, applying our own custom Tailwind CSS classes for the table borders, headers, and rows. The columns should be dynamically generated based on the keys of the JSON objects.
+3.	Below the table, render two action buttons using our custom Button component: 'Approve Schema' (styled with a primary/green variant) and 'Request Changes' (styled with an outline variant).
+4.	If the user clicks 'Request Changes', focus the main chat input so they can type their feedback. If the user clicks 'Approve Schema', trigger a function to send the approval signal to the backend.
+Please provide the code for this custom headless Data Table preview component."
+Step 5: Connecting the LangGraph API Endpoints
+"Step 5: Wire up the frontend to the backend FastAPI chat endpoints.
+1.	In your lib/api.ts utility, create a startChat(prompt) function that hits the backend /chat/start endpoint.
+2.	Create a resumeChat(thread_id, user_feedback) function. This maps to the backend's /chat/resume endpoint, which feeds the user's feedback (or approval) back into the paused LangGraph state machine.
+3.	Integrate these functions into the ChatWindow. When the user types a normal message, send it. When the backend returns a type: 'preview' message, render the SchemaPreview component. When the user clicks 'Approve' on the preview, call resumeChat with an approval payload.
+Please provide the updated ChatWindow and API logic to handle this cyclical workflow."
+Step 6: Handling Massive File Downloads Safely
+"Step 6: Implement the file download logic for the final generated dataset.
+Once the AI finishes generating the massive dataset via the sandbox, the backend will stream the file as a Blob response. If we load a multi-gigabyte file entirely into memory, it will crash the browser.
+1.	Create a DownloadButton component that appears at the end of the chat.
+2.	In the onClick handler, make a request to the backend download endpoint. Ensure you extract the arrayBuffer/Blob correctly.
+3.	Handle the blob response securely by converting the array buffer to binary data and generating an object URL: const url = URL.createObjectURL(new Blob()).
+4.	Programmatically create a hidden <a> element, set its href to the created URL, set the download attribute to synthetic_data.csv, append it to the body, click it, and then instantly clean it up (URL.revokeObjectURL).
+Please write the code for the download component and the robust blob-handling utility."
