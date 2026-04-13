@@ -1,28 +1,21 @@
-Here is the AGENTS.md file formatted in a markdown code block so you can easily copy it for your copilot:
-# AGENTS.md: Enterprise Backend Architecture & Implementation Guide
+Here is the updated AGENTS.md file reflecting your strict constraints of using Python 3.6 and SQLite.
+# AGENTS.md: Enterprise Backend Architecture & Implementation Guide (Legacy Stack)
 ## 1. Core Technology Stack
- * **Language:** Python 3.12 or 3.13. **Strict Constraint:** Do not use Python 3.6, as it has reached end-of-life and lacks the security patches and async capabilities required for modern AI frameworks.
- * **Database:** PostgreSQL. Utilize JSONB fields for storing nested ISO 20022 schemas and complex LLM payloads. **Strict Constraint:** Do not use SQLite for the core application database, as it will encounter severe database locking and write-contention under concurrent enterprise loads.
+ * **Language:** Python 3.6. Note that this version reached its End of Life in December 2021 and no longer receives security or bug fixes.[1]
+ * **Database:** SQLite. To handle concurrent users, you must enable Write-Ahead Logging (WAL) mode and configure a high lock timeout value to mitigate database-level locking bottlenecks.
 ## 2. Agent Orchestration Framework
- * **Framework Selection:** Implement the multi-agent recursive feedback loop using **LangGraph**. LangGraph is specifically designed for complex, stateful workflows with branching logic and provides the low-level control required for evaluator-refiner code generation loops.
- * **State Management:** Utilize LangGraph's built-in persistence layer to implement robust state checkpointing. Capturing complete agent states at strategic moments serves as an insurance policy against API timeouts during long-running tasks.
- * **Context Engineering:** Ensure the agent's context window only retains the *current, functional state* of the generated Python script and the immediate user feedback. Truncate historical, failed iterations to preserve API latency and model focus.
+ * **Framework Selection:** Modern orchestration frameworks like LangChain and LangGraph officially require Python 3.8.1 or higher and cannot be installed on Python 3.6. You must build a custom, manual orchestration loop for the evaluator-refiner code generation.[2]
+ * **State Management:** Since you are building a custom loop, conversational state and script iterations must be manually saved to SQLite tables. Keep write transactions extremely brief to avoid locking out other agents.
 ## 3. Secure Code Execution Sandbox
- * **Execution Isolation:** **Strict Constraint:** Never execute LLM-generated code using Python's native exec() or eval().
- * **Sandbox Infrastructure:** Use isolated microVM SDKs (such as **llm-sandbox** or **E2B**) to execute the generated Python scripts. This ensures code runs in isolated containers with no access to the host system, complete with network isolation and strict CPU/memory limits.
- * **Pre-installed Financial Libraries:** Pre-configure the execution sandboxes with specialized libraries to abstract XML complexity away from the LLM:
-   * pain001: For automating the generation of ISO 20022-compliant payment files from CSV or dictionaries.
-   * pyiso20022: For parsing, generating, and validating financial messages (e.g., pacs, camt) and outputting human-readable validation errors.
-   * Faker: For high-speed generation of deterministic dummy text fields.
+ * **Execution Isolation:** You will need to build custom Docker containers or rely on compatible older sandbox environments that still support Python 3.6.
+ * **Manual XML Construction:** Modern financial libraries like pain001 (requires Python 3.9+) and pyiso20022 (requires Python 3.8+) are incompatible with this stack. Your agent must be prompted to manually construct ISO 20022 XML using Python's built-in xml.etree.ElementTree module.
+ * **Dummy Data:** Rely on older, compatible versions of libraries like Faker to generate dummy fields, ensuring you pin the dependency to a version that supports Python 3.6.
 ## 4. Atlassian Ecosystem Integration
- * **Jira API Integration:** Authenticate using OAuth 2.0 with the read:jira-work scope. To fetch multiple requirements or user stories at once for an epic, utilize the POST /rest/api/2/issue/bulkfetch endpoint.
- * **Confluence API Integration:** Use the Confluence Cloud REST API v2 to extract mapping tables and data dictionaries. To retrieve the raw, underlying XML representation of a Confluence page, query the GET /pages/{id} endpoint and append the body-format=storage query parameter.
+ * **API Integration:** You will need to use older versions of the atlassian-python-api library or construct manual OAuth 2.0 requests using compatible older versions of the requests library.
+ * **Confluence Extraction:** When querying the Confluence Cloud REST API v2, append the body-format=storage parameter to the /pages/{id} endpoint to retrieve the raw XML representation of the page.[3, 4]
 ## 5. High-Throughput Bulk Generation Pipeline
- * **Architecture:** Once the interactive chat loop yields an approved script, abstract the bulk data generation process into a **Producer/Consumer pattern**.
- * **Stages:**
-   1. *Producer:* Dynamically generates queues of randomized inputs and parameters based on the final script.
-   2. *Consumer-Producers (Workers):* Asynchronous task workers (e.g., Celery) execute the script locally. If LLM inference is still required for specific rows, enforce strict backpressure and a maximum queue size to prevent overwhelming the LLM API.
-   3. *Consumer:* Validates the outputs against the targeted ISO 20022 XSD schema and streams the valid results into the final CSV or XML document for user download.
+ * **Architecture:** Use a decoupled Producer/Consumer pattern.
+ * **Database Protection:** To prevent severe write-contention on the single SQLite database file, worker processes should write the generated synthetic records to temporary local CSV files first, rather than inserting rows into SQLite concurrently.
 ## 6. Compliance & Data Sovereignty
- * **Regulatory Alignment:** Ensure the platform's generation algorithms accurately mimic the statistical properties of production data. This directly addresses the Reserve Bank of India (RBI) mandates that require Regulated Entities to use synthetic data in non-production and testing environments to prevent live customer data leaks.
- * **Data Localization:** To comply with the RBI Master Direction on Data Localization, ensure that all cloud architecture (including PostgreSQL databases, Next.js frontend hosting, and sandbox microVMs) is physically provisioned within domestic Indian data centers.
+ * **Data Localization:** To comply with the Reserve Bank of India (RBI) directive on the storage of payment system data, ensure that the SQLite database file and the server executing the Python 3.6 code are physically stored only in India.[5, 6]
+ * **Security Posture:** Apply strict network isolation to the server to mitigate the risks of unpatched Python 3.6 vulnerabilities.[1]
