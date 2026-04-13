@@ -1,49 +1,42 @@
-Master Context Prompt (Provide this first)
-"You are an expert backend Python developer specializing in Domain-Driven Design, FastAPI, LangGraph, and secure code execution. We are building an AI-powered Synthetic Test Data Generator. The architecture uses FastAPI, SQLite (file-backed, WAL mode), LangGraph for stateful Human-in-the-Loop orchestration, and the E2B microVM SDK for secure Python script execution. I will provide instructions step-by-step. Acknowledge this architecture, and wait for the first step."
-Step 1: Core Scaffolding and Database Setup
-"Step 1: Create the core modular monolith structure.
-1.	Initialize a FastAPI application with CORS middleware.
-2.	Create the following directory structure: src/main.py, src/api/v1/, src/domain/, src/data/, src/services/, and src/core/.
-3.	Set up the src/core/config.py using Pydantic settings to load environment variables (e.g., JWT secret, E2B API key, OpenAI API key).
-4.	In src/data/database.py, initialize a file-backed SQLite database (app_state.db). Ensure the SQLAlchemy engine is configured with check_same_thread=False to support FastAPI's asynchronous event loop.
-5.	Create basic SQLAlchemy Base models and a dependency function to yield the database session.
-Please provide the code for these files."
-Step 2: Authentication and Security Layer
-"Step 2: Implement user authentication and secure token storage.
-1.	Create a User entity in the Domain layer and its corresponding SQLAlchemy model in the Data layer. The model should store an email, hashed password, and encrypted Atlassian token.
-2.	Implement password hashing using Argon2.
-3.	Implement JWT generation and validation logic in a new auth_service.
-4.	Create a custom SQLAlchemy TypeDecorator that uses the cryptography library's Fernet symmetric encryption to automatically encrypt the user's Atlassian token before saving it to SQLite, and decrypt it when retrieving it.
-5.	Create the FastAPI routers for /register and /login, returning a JWT upon success.
-Please write the code for the models, the TypeDecorator, and the auth routers."
-Step 3: Jira and Confluence Integration Service
-"Step 3: Implement the Atlassian Context Ingestion tools.
-1.	Create a service that accepts the decrypted Atlassian token and email to establish Basic Authentication headers.
-2.	Create a function to fetch Jira issue descriptions via the Jira REST API.
-3.	Create a function to fetch Confluence page content. Use the Confluence REST API and ensure you include the query parameter expand=body.storage or body.view to retrieve the actual page content.
-4.	Create a lightweight LLM 'Diff-aware' summarization function using langchain. This function should take the raw Atlassian text and extract the database schema constraints (tables, columns, data types).
-Please provide the implementation for this data ingestion service."
-Step 4: LangGraph Human-in-the-Loop Orchestration
-"Step 4: Build the LangGraph state machine.
-1.	Define a TypedDict for the graph state tracking: message history, extracted Atlassian context, current JSON schema draft, preview data, and a boolean is_approved flag.
-2.	Create the core nodes: AnalyzeContext, DraftSchema, GeneratePreview, and AwaitFeedback.
-3.	In GeneratePreview, synthesize 5 rows of sample data based on the JSON draft.
-4.	After GeneratePreview, use LangGraph's interrupt() function to explicitly pause graph execution and return the sample data to the user.
-5.	Compile the graph using MemorySaver or an SQLite checkpointer mapped to a specific thread_id to persist the state when paused.
-6.	Create the FastAPI endpoints: /chat/start to begin the graph, and /chat/resume which uses LangGraph's Command(resume=...) to inject user feedback back into the paused graph and continue execution.
-Please write the LangGraph workflow and the FastAPI chat endpoints."
-Step 5: Code Generation and E2B Sandbox Execution
-"Step 5: Implement the final script generation and microVM sandbox execution.
-1.	Once the graph state shows is_approved=True, trigger the SynthesisExecutionNode.
-2.	Write a rigid LLM prompt instructing it to generate a deterministic Python script using the faker library (for generating realistic fake data) and pandas (to assemble and serialize the data). The prompt must inject the approved JSON schema and the requested number of test cases.
-3.	Import the e2b Python SDK. Use Sandbox.create() to provision an ephemeral Firecracker microVM.
-4.	Transmit the generated script to the sandbox and execute it using sandbox.run_code() (or commands.run).
-5.	Once the script successfully writes the CSV/JSON file inside the sandbox, download the file into a temporary local directory on the FastAPI server using sandbox.files.read('/path/in/sandbox').
-Please provide the code for the code-generation prompt and the E2B sandbox orchestration logic."
-Step 6: Asynchronous File Streaming Endpoint
-"Step 6: Implement the file delivery mechanism to prevent memory overload.
-1.	Do not load the entire generated multi-gigabyte file into memory. Instead, create an asynchronous generator function in Python that opens the temporary file and reads it in chunks (e.g., 64KB blocks) using yield.
-2.	Create a FastAPI GET endpoint /download/{session_id}.
-3.	Configure the endpoint to return a StreamingResponse wrapping your async generator.
-4.	Set the response headers, explicitly adding Content-Disposition: attachment; filename="synthetic_test_data.csv" to force the browser to open a download dialog rather than rendering the file.
-Please write the streaming endpoint and the async generator function."
+Here is the step-by-step prompt sequence designed for your AI coding assistant (like GitHub Copilot or ChatGPT) to build the backend.
+As an expert prompt engineer, I have structured these prompts to account for your strict Python 3.6 and SQLite constraints. Because modern AI frameworks (like LangChain) and official LLM SDKs have dropped Python 3.6 support, these prompts instruct the AI to build custom, dependency-free implementations.
+Copy and paste these prompts sequentially into your coding assistant:
+### Prompt 1: Foundation & High-Concurrency SQLite Setup
+**Copy this into your Copilot:**
+> "Act as an expert Python 3.6 backend developer. We are building the backend for an AI-powered SWIFT synthetic test data generator.
+> Task 1: Set up the database connection using Python's built-in sqlite3 module. Since SQLite relies on database-level locking which blocks concurrent readers and writers, you must configure the connection to use Write-Ahead Logging (WAL) mode by executing PRAGMA journal_mode=WAL; upon connection. Also, set a high timeout value (e.g., 20 seconds) to mitigate write-contention lockouts.
+> Task 2: Create the schema. We need tables for chat_sessions (to store active user contexts), script_iterations (to store the Python code generated by the LLM), and system_logs. Ensure all timestamps use UTC."
+> 
+### Prompt 2: Atlassian Jira & Confluence Integration
+**Copy this into your Copilot:**
+> "Task: Implement the Atlassian extraction module using the requests library (ensure compatibility with Python 3.6).
+> Requirement 1: Create a function to extract Jira requirements. Use the GET /rest/api/2/issue/{issueIdOrKey} endpoint to fetch issue details and acceptance criteria.[1]
+> Requirement 2: Create a function to extract Confluence data dictionaries. Use the Confluence Cloud REST API v2. Specifically, hit the GET /wiki/api/v2/pages/{id} endpoint. You must append the query parameter ?body-format=storage to retrieve the underlying XML representation of the page.[2, 3]
+> Requirement 3: Write a lightweight XML parser using Python's built-in xml.etree.ElementTree to strip out the HTML/XML tags from the Confluence storage format and return clean, raw text for our LLM context."
+> 
+### Prompt 3: LLM REST API Integration (Bypassing SDK Limits)
+**Copy this into your Copilot:**
+> "Task: Build the LLM communication layer. Since the official OpenAI and Anthropic Python SDKs require Python 3.7+, we cannot use them in our Python 3.6 environment.
+> Write a custom HTTP client class using the requests module to call the LLM's REST API directly (e.g., https://api.openai.com/v1/chat/completions). Implement robust error handling, exponential backoff for rate limits (HTTP 429), and HTTP timeout handling. The class should accept a system prompt, a list of message dictionaries (role and content), and return the raw text response."
+> 
+### Prompt 4: SWIFT ISO 20022 XML Builder
+**Copy this into your Copilot:**
+> "Task: Create a utility script that the LLM can import to safely generate ISO 20022 XML data (like pacs.008 messages). Because modern financial libraries like pain001 or pyiso20022 are not supported on Python 3.6, we must build a manual constructor.
+> Use Python's built-in xml.etree.ElementTree module. Create a Python class ISO20022Builder. It should include methods to construct the <AppHdr> block and the nested <pacs.008> body. Include specific functions for creating complex nested structures required for SWIFT, such as the Group Header and the Credit Transfer Transaction Information blocks.[4] Ensure the class outputs well-formed XML strings without using external libraries."
+> 
+### Prompt 5: The Recursive Evaluator-Refiner Loop
+**Copy this into your Copilot:**
+> "Task: Implement the core AI cognitive architecture using an Evaluator-Refiner loop.[5]
+> Step 1 (Generation): The backend takes the user's prompt, injects any Jira/Confluence context, and calls our LLM REST client to generate a Python data-synthesis script.
+> Step 2 (Execution): Save the script locally and use Python's subprocess.run() to execute it. Capture both stdout and stderr.
+> Step 3 (Evaluation): If stderr contains errors, automatically pass the error traceback back to the LLM REST client, prompting it to act as an independent evaluator to fix the bug.[5]
+> Step 4 (Limits): Hard-cap this automated self-correction cycle at 4 iterations to prevent infinite hallucination loops.[5] Manage the chat history in the SQLite database, ensuring only the most recent functional script is kept in the active LLM context to prevent token overflow."
+> 
+### Prompt 6: High-Throughput Bulk Generation Pipeline
+**Copy this into your Copilot:**
+> "Task: Transition the approved data generation script into a bulk processing engine.
+> Implement a decoupled Producer/Consumer design pattern [6] compatible with Python 3.6.
+>  1. The Producer function should generate a list of randomized input parameters (e.g., varying debtor names and transaction amounts).
+>  2. Create a pool of Consumer worker processes using Python's multiprocessing module or a lightweight queue system.
+>  3. To prevent severe write-contention on our single SQLite file, the Consumer workers must NOT write the generated millions of synthetic records into the SQLite database. Instead, have them write directly to a local partitioned CSV or XML file on the host filesystem."
+> 
